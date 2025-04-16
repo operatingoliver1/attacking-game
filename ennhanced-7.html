@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Space Shooter Game</title>
+    <style>
+      html, body {
+        cursor: none;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+      #gameArea {
+        position: relative;
+        width: 100%;
+        height: 100vh;
+        background-color: black;
+        overflow: hidden;
+      }
+      .star {
+        position: absolute;
+        background: white;
+        border-radius: 50%;
+        opacity: 0.7;
+        animation: twinkle 2s infinite alternate;
+      }
+      @keyframes twinkle {
+        from { opacity: 0.7; }
+        to { opacity: 0.3; }
+      }
+      #player {
+        position: absolute;
+        width: 50px;
+        height: 100px;
+        z-index: 10;
+      }
+      #player.active-powerup {
+        filter: drop-shadow(0 0 5px white);
+      }
+      .laser {
+        position: absolute;
+        width: 5px;
+        height: 20px;
+        background-color: red;
+        z-index: 5;
+      }
+      .laser-multishot {
+        background-color: blue;
+      }
+      .laser-size {
+        background-color: yellow;
+        width: 10px;
+        height: 30px;
+      }
+      .boss-laser {
+        background-color: orange;
+        width: 5px;
+        height: 20px;
+        z-index: 6;
+      }
+      .boss-missile {
+        background-color: purple;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        z-index: 6;
+      }
+      .enemy {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        z-index: 6;
+        clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+        transform: rotate(180deg);
+      }
+      .enemy-large {
+        width: 60px;
+        height: 60px;
+        clip-path: none;
+        border-radius: 50%;
+        animation: pulse 1.5s infinite;
+      }
+      .boss {
+        width: 100px;
+        height: 100px;
+        clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        background-color: red;
+        z-index: 7;
+        animation: boss-glow 1s infinite alternate;
+      }
+      .boss-attacking {
+        background-color: orange;
+        transition: background-color 0.2s;
+      }
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+      @keyframes boss-glow {
+        from { box-shadow: 0 0 10px red; }
+        to { box-shadow: 0 0 20px red; }
+      }
+      #cursor {
+        position: absolute;
+        background-size: contain;
+        pointer-events: none;
+        z-index: 100;
+      }
+      .powerup {
+        position: absolute;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        z-index: 7;
+        animation: spin 1s linear infinite;
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        border: 2px solid white;
+      }
+      .powerup-laser-size {
+        background: gold;
+      }
+      .powerup-shield {
+        background: cyan;
+      }
+      .powerup-multishot {
+        background: magenta;
+      }
+      .powerup-extra-life {
+        background: green;
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(180deg); }
+      }
+      .effect {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 50%;
+        animation: explode 0.4s ease-out forwards;
+      }
+      @keyframes explode {
+        0% { transform: scale(1); opacity: 1; }
+        100% { transform: scale(3); opacity: 0; }
+      }
+      .powerup-label {
+        position: absolute;
+        color: white;
+        font-family: Arial, sans-serif;
+        font-size: 16px;
+        z-index: 50;
+        animation: float-up 1.5s ease-out forwards;
+      }
+      @keyframes float-up {
+        0% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-50px); }
+      }
+      .timer-bar {
+        position: absolute;
+        height: 5px;
+        background-color: white;
+        z-index: 50;
+        transition: width 0.1s linear;
+      }
+      .timer-bar.laser-size { background-color: gold; }
+      .timer-bar.shield { background-color: cyan; }
+      .timer-bar.multishot { background-color: magenta; }
+      #score, #lives {
+        position: absolute;
+        color: white;
+        font-family: Arial, sans-serif;
+        font-size: 20px;
+        z-index: 50;
+      }
+      #score { top: 10px; left: 10px; }
+      #lives { top: 10px; right: 10px; }
+      #gameOverOverlay, #startOverlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 200;
+      }
+      #startOverlay { display: flex; }
+      #gameOverOverlay { display: none; }
+      #startButton, #restartButton {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 18px;
+        cursor: pointer;
+        background-color: #4caf50;
+        border: none;
+        color: white;
+        border-radius: 5px;
+      }
+      #startButton:hover, #restartButton:hover {
+        background-color: #45a049;
+      }
+      .spaceship {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-size: contain;
+        z-index: 10;
+        pointer-events: none;
+      }
+      .content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .hair {
+        background-color: rgb(201, 209, 193);
+        width: 30px;
+        height: 20px;
+        border-radius: 10px 10px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .hairs {
+        background-color: black;
+        width: 6px;
+        height: 17px;
+        border-radius: 100% 100% 0 0;
+        margin: 0 1px;
+      }
+      .head {
+        width: 25px;
+        height: 34px;
+        background-color: rgb(122, 43, 197);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        border-radius: 8px 8px 10px 10px;
+      }
+      .eyes {
+        width: 17px;
+        height: 3px;
+        margin-top: 9px;
+        display: flex;
+        justify-content: space-evenly;
+      }
+      .eye {
+        width: 3px;
+        height: 3.5px;
+        background-color: white;
+      }
+      .mouth {
+        width: 10px;
+        background-color: rgb(253, 253, 253);
+        border-radius: 10px 10px 20px 20px;
+        margin-bottom: 4px;
+        height: 8px;
+        display: flex;
+        align-items: end;
+        justify-content: center;
+      }
+      .tounge {
+        background-color: red;
+        width: 10px;
+        margin-bottom: 0.28px;
+        border-radius: 10px 10px 30px 30px;
+        height: 4px;
+      }
+      .bodies {
+        width: 150px;
+        display: flex;
+        justify-content: center;
+      }
+      .hand {
+        background-color: rgb(18, 75, 139);
+        width: 30px;
+        height: 9px;
+        margin-top: 13px;
+      }
+      .L { transform: rotate(-30deg); }
+      .R { transform: rotate(30deg); }
+      .bods {
+        width: 50px;
+        height: 100px;
+        border-radius: 9px 9px 50% 50%;
+        background-color: rgb(18, 75, 139);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameArea">
+      <div id="player">
+        <div class="spaceship content">
+          <div class="hair">
+            <div class="hairs"></div>
+            <div class="hairs"></div>
+            <div class="hairs"></div>
+            <div class="hairs"></div>
+            <div class="hairs"></div>
+          </div>
+          <div class="head">
+            <div class="eyes">
+              <div class="eye"></div>
+              <div class="eye"></div>
+            </div>
+            <div class="mouth">
+              <div class="tounge"></div>
+            </div>
+          </div>
+          <div class="bodies">
+            <div class="hand L"></div>
+            <div class="bods"></div>
+            <div class="hand R"></div>
+          </div>
+        </div>
+      </div>
+      <div id="score">Score: 0</div>
+      <div id="lives">Lives: 3</div>
+      <div id="startOverlay">
+        <h1>Space Shooter</h1>
+        <button id="startButton">Start Game</button>
+      </div>
+      <div id="gameOverOverlay">
+        <div id="finalScore"></div>
+        <button id="restartButton">Restart Game</button>
+      </div>
+    </div>
+    <div id="cursor"></div>
+    <audio id="laserSound" src="laser.wav" preload="auto"></audio>
+    <audio id="explosionSound" src="explosion.wav" preload="auto"></audio>
+    <audio id="powerupSound" src="powerup.wav" preload="auto"></audio>
+    <audio id="backgroundMusic" src="background.mp3" loop preload="auto"></audio>
+    <script>
+      // DOM Elements
+      const gameArea = document.getElementById('gameArea');
+      const player = document.getElementById('player');
+      const scoreElement = document.getElementById('score');
+      const livesElement = document.getElementById('lives');
+      const startOverlay = document.getElementById('startOverlay');
+      const startButton = document.getElementById('startButton');
+      const gameOverOverlay = document.getElementById('gameOverOverlay');
+      const restartButton = document.getElementById('restartButton');
+      const cursor = document.getElementById('cursor');
+      const laserSound = document.getElementById('laserSound');
+      const explosionSound = document.getElementById('explosionSound');
+      const powerupSound = document.getElementById('powerupSound');
+      const backgroundMusic = document.getElementById('backgroundMusic');
+
+      // Game State
+      let score = 0;
+      let lives = 3;
+      let lasers = [];
+      let bossLasers = [];
+      let bossMissiles = [];
+      let enemies = [];
+      let powerups = [];
+      let bosses = [];
+      let isGameOver = false;
+      let gameStarted = false;
+      let gameStartTime = 0;
+      let enemySpeed = 4;
+      let spawnInterval = 1500;
+      let largeEnemyChance = 0.2;
+      let comboMultiplier = 1;
+      let lastHitTime = 0;
+      let powerupState = {
+        laserSize: false,
+        shield: false,
+        multishot: false,
+        extraLife: false
+      };
+      let isInvulnerable = false;
+      let powerupTimers = {};
+      let powerupDurations = {};
+
+      // Create starfield
+      function createStarfield() {
+        for (let i = 0; i < 100; i++) {
+          const star = document.createElement('div');
+          star.className = 'star';
+          star.style.width = star.style.height = Math.random() * 2 + 1 + 'px';
+          star.style.left = Math.random() * gameArea.clientWidth + 'px';
+          star.style.top = Math.random() * gameArea.clientHeight + 'px';
+          star.style.animationDelay = Math.random() * 2 + 's';
+          gameArea.appendChild(star);
+        }
+      }
+
+      // Move player and cursor
+      document.addEventListener('mousemove', (e) => {
+        cursor.style.left = e.clientX - cursor.offsetWidth / 2 + 'px';
+        cursor.style.top = e.clientY - cursor.offsetHeight / 2 + 'px';
+
+        const rect = gameArea.getBoundingClientRect();
+        let x = e.clientX - rect.left;
+        let y = e.clientY - rect.top;
+        x = Math.max(0, Math.min(gameArea.clientWidth - player.offsetWidth, x));
+        y = Math.max(0, Math.min(gameArea.clientHeight - player.offsetHeight, y));
+        player.style.left = x + 'px';
+        player.style.top = y + 'px';
+      });
+
+      // Fire laser
+      function fireLaser() {
+        if (isGameOver || !gameStarted) return;
+        
+        if (powerupState.multishot) {
+          const offsets = [-15, 0, 15];
+          offsets.forEach(offset => {
+            const laser = document.createElement('div');
+            laser.classList.add('laser', 'laser-multishot');
+            laser.style.left = player.offsetLeft + player.offsetWidth / 2 - 2.5 + offset + 'px';
+            laser.style.top = player.offsetTop - 20 + 'px';
+            gameArea.appendChild(laser);
+            lasers.push(laser);
+          });
+        } else {
+          const laser = document.createElement('div');
+          laser.classList.add('laser');
+          if (powerupState.laserSize) {
+            laser.classList.add('laser-size');
+          }
+          laser.style.left = player.offsetLeft + player.offsetWidth / 2 - 2.5 + 'px';
+          laser.style.top = player.offsetTop - 20 + 'px';
+          gameArea.appendChild(laser);
+          lasers.push(laser);
+        }
+        
+        laserSound.currentTime = 0;
+        laserSound.play().catch(e => console.error('Laser sound failed:', e.message));
+      }
+
+      // Create enemy
+      function createEnemy() {
+        if (enemies.length >= 20 || bosses.length > 0) return;
+        const isLarge = Math.random() < largeEnemyChance;
+        const enemy = document.createElement('div');
+        enemy.classList.add('enemy');
+        if (isLarge) {
+          enemy.classList.add('enemy-large');
+        }
+        enemy.style.left = Math.random() * (gameArea.clientWidth - (isLarge ? 60 : 40)) + 'px';
+        enemy.style.top = '0px';
+        const colors = ['green', 'orange', 'purple', 'cyan', 'pink'];
+        enemy.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        gameArea.appendChild(enemy);
+        enemies.push({ element: enemy, isLarge });
+      }
+
+      // Create boss
+      function createBoss() {
+        if (bosses.length > 0 || isGameOver || !gameStarted) return;
+        const boss = document.createElement('div');
+        boss.classList.add('boss');
+        boss.style.left = '50px';
+        boss.style.top = '50px';
+        gameArea.appendChild(boss);
+        bosses.push({ element: boss, health: 32, direction: 1, moveTimer: 0, lastFire: 0, lastMissile: 0 });
+        console.log('Boss spawned at:', new Date());
+      }
+
+      // Boss fire lasers
+      function bossFireLasers(boss) {
+        const currentTime = Date.now();
+        if (currentTime - boss.lastFire < 1000) return;
+        const bossY = parseFloat(boss.element.style.top);
+        const playerY = player.offsetTop;
+        if (Math.abs(bossY - playerY) > 600) return; // Proximity check
+        const angles = [-Math.PI / 3, 0, Math.PI / 3]; // ±60° spread
+        angles.forEach(angle => {
+          const laser = document.createElement('div');
+          laser.classList.add('boss-laser');
+          laser.style.left = parseFloat(boss.element.style.left) + 50 + 'px';
+          laser.style.top = parseFloat(boss.element.style.top) + 100 + 'px';
+          laser.dataset.angle = angle;
+          gameArea.appendChild(laser);
+          bossLasers.push(laser);
+        });
+        boss.element.classList.add('boss-attacking');
+        setTimeout(() => boss.element.classList.remove('boss-attacking'), 200);
+        boss.lastFire = currentTime;
+        laserSound.currentTime = 0;
+        laserSound.play().catch(e => console.error('Laser sound failed:', e.message));
+      }
+
+      // Boss fire missile
+      function bossFireMissile(boss) {
+        const currentTime = Date.now();
+        if (currentTime - boss.lastMissile < 2000) return;
+        const bossY = parseFloat(boss.element.style.top);
+        const playerY = player.offsetTop;
+        if (Math.abs(bossY - playerY) > 600) return; // Proximity check
+        const missile = document.createElement('div');
+        missile.classList.add('boss-missile');
+        missile.style.left = parseFloat(boss.element.style.left) + 45 + 'px';
+        missile.style.top = parseFloat(boss.element.style.top) + 100 + 'px';
+        gameArea.appendChild(missile);
+        bossMissiles.push({ element: missile, startTime: currentTime });
+        boss.element.classList.add('boss-attacking');
+        setTimeout(() => boss.element.classList.remove('boss-attacking'), 200);
+        boss.lastMissile = currentTime;
+        explosionSound.currentTime = 0;
+        explosionSound.play().catch(e => console.error('Missile sound failed:', e.message));
+      }
+
+      // Create power-up
+      function createPowerup() {
+        const elapsedTime = Date.now() - gameStartTime;
+        const powerupTypes = elapsedTime > 60000
+          ? ['laserSize', 'shield', 'multishot', 'extraLife']
+          : ['laserSize', 'shield', 'multishot'];
+        const type = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+        const powerup = document.createElement('div');
+        powerup.classList.add('powerup', `powerup-${type}`);
+        powerup.dataset.type = type;
+        powerup.style.left = Math.random() * (gameArea.clientWidth - 30) + 'px';
+        powerup.style.top = '0px';
+        gameArea.appendChild(powerup);
+        powerups.push(powerup);
+      }
+
+      // Collision detection
+      function isColliding(a, b) {
+        const aRect = a.querySelector('.bods')?.getBoundingClientRect() || a.getBoundingClientRect();
+        const bRect = b.getBoundingClientRect();
+        return !(
+          aRect.top > bRect.bottom ||
+          aRect.bottom < bRect.top ||
+          aRect.left > bRect.right ||
+          aRect.right < bRect.left
+        );
+      }
+
+      // Create explosion effect
+      function createExplosion(x, y) {
+        const effect = document.createElement('div');
+        effect.className = 'effect';
+        effect.style.left = x + 'px';
+        effect.style.top = y + 'px';
+        gameArea.appendChild(effect);
+        setTimeout(() => cleanupElement(effect), 400);
+      }
+
+      // Clean up DOM element
+      function cleanupElement(element, array = null, index = -1) {
+        if (element?.parentNode === gameArea) {
+          gameArea.removeChild(element);
+        }
+        if (array && index >= 0) {
+          array.splice(index, 1);
+        }
+      }
+
+      // Show power-up label
+      function showPowerupLabel(text) {
+        const label = document.createElement('div');
+        label.className = 'powerup-label';
+        label.textContent = text;
+        label.style.left = player.offsetLeft + player.offsetWidth / 2 - 20 + 'px';
+        label.style.top = player.offsetTop - 20 + 'px';
+        gameArea.appendChild(label);
+        setTimeout(() => cleanupElement(label), 1500);
+      }
+
+      // Create timer bar
+      function createTimerBar(type, duration) {
+        const bar = document.createElement('div');
+        bar.classList.add('timer-bar', type);
+        bar.style.width = '50px';
+        bar.style.left = player.offsetLeft + 'px';
+        bar.style.top = player.offsetTop - 10 - Object.keys(powerupDurations).length * 7 + 'px';
+        gameArea.appendChild(bar);
+        powerupDurations[type] = { bar, startTime: Date.now(), duration };
+      }
+
+      // Update timer bars
+      function updateTimerBars() {
+        for (const type in powerupDurations) {
+          const { bar, startTime, duration } = powerupDurations[type];
+          const elapsed = Date.now() - startTime;
+          const remaining = Math.max(0, duration - elapsed);
+          const percentage = (remaining / duration) * 100;
+          bar.style.width = (percentage / 100 * 50) + 'px';
+          bar.style.left = player.offsetLeft + 'px';
+          bar.style.top = player.offsetTop - 10 - Object.keys(powerupDurations).indexOf(type) * 7 + 'px';
+          if (remaining <= 0) {
+            cleanupElement(bar);
+            delete powerupDurations[type];
+          }
+        }
+      }
+
+      // Collect power-up
+      function collectPowerup(powerup) {
+        const type = powerup.dataset.type;
+        powerupState[type] = true;
+        console.log(`Collected ${type} power-up at:`, new Date());
+        
+        clearTimeout(powerupTimers[type]);
+        
+        let borderColor, labelText;
+        switch (type) {
+          case 'laserSize':
+            borderColor = 'gold';
+            labelText = 'Laser Size!';
+            createTimerBar(type, 8000);
+            break;
+          case 'shield':
+            borderColor = 'cyan';
+            labelText = 'Shield!';
+            createTimerBar(type, 8000);
+            break;
+          case 'multishot':
+            borderColor = 'magenta';
+            labelText = 'Multi-Shot!';
+            createTimerBar(type, 8000);
+            break;
+          case 'extraLife':
+            borderColor = 'green';
+            labelText = 'Extra Life!';
+            lives++;
+            livesElement.textContent = `Lives: ${lives}`;
+            powerupState.extraLife = false;
+            break;
+        }
+        if (type !== 'extraLife') {
+          player.style.border = `2px solid ${borderColor}`;
+          player.classList.add('active-powerup');
+        }
+        showPowerupLabel(labelText);
+        
+        powerupSound.currentTime = 0;
+        powerupSound.play().catch(e => console.error('Power-up sound failed:', e.message));
+        
+        if (type !== 'extraLife') {
+          const duration = 8000;
+          powerupTimers[type] = setTimeout(() => {
+            powerupState[type] = false;
+            console.log(`${type} power-up expired at:`, new Date());
+            if (!Object.values(powerupState).some(state => state)) {
+              player.style.border = 'none';
+              player.classList.remove('active-powerup');
+            }
+          }, duration);
+        }
+      }
+
+      // Lose life
+      function loseLife() {
+        if (isInvulnerable || powerupState.shield) return;
+        lives--;
+        livesElement.textContent = `Lives: ${lives}`;
+        isInvulnerable = true;
+        player.style.border = '2px solid red';
+        player.classList.remove('active-powerup');
+        explosionSound.currentTime = 0;
+        explosionSound.play().catch(e => console.error('Explosion sound failed:', e.message));
+        setTimeout(() => {
+          isInvulnerable = false;
+          const activePowerup = Object.keys(powerupState).find(key => powerupState[key]);
+          if (activePowerup) {
+            let borderColor;
+            switch (activePowerup) {
+              case 'laserSize': borderColor = 'gold'; break;
+              case 'shield': borderColor = 'cyan'; break;
+              case 'multishot': borderColor = 'magenta'; break;
+              case 'extraLife': borderColor = 'green'; break;
+            }
+            player.style.border = `2px solid ${borderColor}`;
+            player.classList.add('active-powerup');
+          } else {
+            player.style.border = 'none';
+            player.classList.remove('active-powerup');
+          }
+        }, 1000);
+        if (lives <= 0) {
+          gameOver();
+        }
+      }
+
+      // Game over
+      function gameOver() {
+        isGameOver = true;
+        backgroundMusic.pause();
+        gameOverOverlay.style.display = 'flex';
+        document.getElementById('finalScore').textContent = `Game Over! Your score: ${score}`;
+      }
+
+      // Restart game
+      function restartGame() {
+        lasers.forEach((laser, i) => cleanupElement(laser, lasers, i));
+        bossLasers.forEach((laser, i) => cleanupElement(laser, bossLasers, i));
+        bossMissiles.forEach((missile, i) => cleanupElement(missile.element, bossMissiles, i));
+        enemies.forEach((enemy, i) => cleanupElement(enemy.element, enemies, i));
+        bosses.forEach((boss, i) => cleanupElement(boss.element, bosses, i));
+        powerups.forEach((powerup, i) => cleanupElement(powerup, powerups, i));
+        document.querySelectorAll('.star').forEach(star => star.remove());
+        document.querySelectorAll('.powerup-label').forEach(label => label.remove());
+        document.querySelectorAll('.timer-bar').forEach(bar => bar.remove());
+        lasers = [];
+        bossLasers = [];
+        bossMissiles = [];
+        enemies = [];
+        bosses = [];
+        powerups = [];
+        score = 0;
+        lives = 3;
+        enemySpeed = 4;
+        spawnInterval = 1500;
+        largeEnemyChance = 0.2;
+        comboMultiplier = 1;
+        lastHitTime = 0;
+        gameStartTime = 0;
+        powerupState = { laserSize: false, shield: false, multishot: false, extraLife: false };
+        isInvulnerable = false;
+        Object.keys(powerupTimers).forEach(key => clearTimeout(powerupTimers[key]));
+        powerupTimers = {};
+        powerupDurations = {};
+        scoreElement.textContent = `Score: ${score}`;
+        livesElement.textContent = `Lives: ${lives}`;
+        player.style.border = 'none';
+        player.classList.remove('active-powerup');
+        isGameOver = false;
+        gameOverOverlay.style.display = 'none';
+        createStarfield();
+        startEnemySpawn();
+        if (gameStarted) {
+          backgroundMusic.currentTime = 0;
+          backgroundMusic.play().catch(e => console.error('Background music failed:', e.message));
+          requestAnimationFrame(gameLoop);
+        }
+      }
+
+      // Dynamic enemy spawn
+      let spawnTimer = null;
+      function startEnemySpawn() {
+        if (spawnTimer) clearInterval(spawnTimer);
+        spawnTimer = setInterval(() => {
+          if (!isGameOver && gameStarted) createEnemy();
+        }, spawnInterval);
+      }
+
+      // Start game
+      startButton.addEventListener('click', () => {
+        startOverlay.style.display = 'none';
+        gameStarted = true;
+        gameStartTime = Date.now();
+        laserSound.load();
+        explosionSound.load();
+        powerupSound.load();
+        backgroundMusic.play().catch(e => console.error('Background music failed:', e.message));
+        createStarfield();
+        startEnemySpawn();
+        requestAnimationFrame(gameLoop);
+      });
+
+      restartButton.addEventListener('click', restartGame);
+
+      // Game loop
+      function gameLoop() {
+        if (isGameOver || !gameStarted) return;
+
+        // Move player lasers
+        for (let i = lasers.length - 1; i >= 0; i--) {
+          const laser = lasers[i];
+          const currentTop = parseFloat(laser.style.top);
+          laser.style.top = currentTop - 10 + 'px';
+          if (currentTop < 0) {
+            cleanupElement(laser, lasers, i);
+          }
+        }
+
+        // Move boss lasers
+        for (let i = bossLasers.length - 1; i >= 0; i--) {
+          const laser = bossLasers[i];
+          let angle = parseFloat(laser.dataset.angle) || 0;
+          const speed = 15;
+          const currentTop = parseFloat(laser.style.top);
+          const currentLeft = parseFloat(laser.style.left);
+          const playerX = player.offsetLeft + player.offsetWidth / 2;
+          const playerY = player.offsetTop + player.offsetHeight / 2;
+          const dx = playerX - currentLeft;
+          const dy = playerY - currentTop;
+          const targetAngle = Math.atan2(dx, dy);
+          const angleDiff = targetAngle - angle;
+          const maxAdjust = 5 * Math.PI / 180; // 5 degrees per frame
+          angle += Math.max(-maxAdjust, Math.min(maxAdjust, angleDiff));
+          laser.dataset.angle = angle;
+          laser.style.top = currentTop + speed * Math.cos(angle) + 'px';
+          laser.style.left = currentLeft + speed * Math.sin(angle) + 'px';
+          if (currentTop > gameArea.clientHeight || currentTop < 0 || currentLeft < 0 || currentLeft > gameArea.clientWidth) {
+            cleanupElement(laser, bossLasers, i);
+            continue;
+          }
+          if (!isInvulnerable && !powerupState.shield && isColliding(player, laser)) {
+            cleanupElement(laser, bossLasers, i);
+            loseLife();
+          }
+        }
+
+        // Move boss missiles
+        for (let i = bossMissiles.length - 1; i >= 0; i--) {
+          const missile = bossMissiles[i];
+          const currentTime = Date.now();
+          if (currentTime - missile.startTime > 5000) {
+            createExplosion(parseFloat(missile.element.style.left), parseFloat(missile.element.style.top));
+            cleanupElement(missile.element, bossMissiles, i);
+            continue;
+          }
+          const missileX = parseFloat(missile.element.style.left);
+          const missileY = parseFloat(missile.element.style.top);
+          const playerX = player.offsetLeft + player.offsetWidth / 2;
+          const playerY = player.offsetTop + player.offsetHeight / 2;
+          const dx = playerX - missileX;
+          const dy = playerY - missileY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const speed = 7;
+          if (distance > 0) {
+            missile.element.style.left = missileX + (dx / distance) * speed + 'px';
+            missile.element.style.top = missileY + (dy / distance) * speed + 'px';
+          }
+          if (!isInvulnerable && !powerupState.shield && isColliding(player, missile.element)) {
+            createExplosion(missileX, missileY);
+            cleanupElement(missile.element, bossMissiles, i);
+            loseLife();
+          }
+        }
+
+        // Move enemies
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const enemy = enemies[i];
+          const currentTop = parseFloat(enemy.element.style.top);
+          const speed = enemy.isLarge ? enemySpeed * 0.7 : enemySpeed;
+          enemy.element.style.top = currentTop + speed + 'px';
+
+          if (!isInvulnerable && !powerupState.shield && isColliding(player, enemy.element)) {
+            cleanupElement(enemy.element, enemies, i);
+            loseLife();
+            continue;
+          }
+
+          // Check laser collisions
+          for (let j = lasers.length - 1; j >= 0; j--) {
+            const laser = lasers[j];
+            if (laser && enemy.element && isColliding(laser, enemy.element)) {
+              createExplosion(enemy.element.offsetLeft, enemy.element.offsetTop);
+              cleanupElement(laser, lasers, j);
+              cleanupElement(enemy.element, enemies, i);
+              explosionSound.currentTime = 0;
+              explosionSound.play().catch(e => console.error('Explosion sound failed:', e.message));
+
+              const currentTime = Date.now();
+              if (currentTime - lastHitTime < 2000) {
+                comboMultiplier = Math.min(comboMultiplier + 0.5, 3);
+              } else {
+                comboMultiplier = 1;
+              }
+              lastHitTime = currentTime;
+
+              let basePoints = enemy.isLarge ? 2 : 1;
+              if (powerupState.laserSize) {
+                basePoints *= 1.5;
+              }
+              const totalPoints = Math.ceil(basePoints * comboMultiplier);
+              score += totalPoints;
+              if (comboMultiplier > 1) {
+                console.log(`Score +${totalPoints} (Combo: x${comboMultiplier})`);
+              }
+              scoreElement.textContent = `Score: ${score}`;
+              break;
+            }
+          }
+
+          if (currentTop > gameArea.clientHeight) {
+            cleanupElement(enemy.element, enemies, i);
+          }
+        }
+
+        // Move bosses
+        for (let i = bosses.length - 1; i >= 0; i--) {
+          const boss = bosses[i];
+          let currentLeft = parseFloat(boss.element.style.left);
+          let currentTop = parseFloat(boss.element.style.top);
+          
+          currentLeft += boss.direction * 8;
+          if (currentLeft <= 0 || currentLeft >= gameArea.clientWidth - 100) {
+            boss.direction *= -1;
+            currentTop += 75;
+          }
+          boss.element.style.left = currentLeft + 'px';
+          boss.element.style.top = currentTop + 'px';
+
+          bossFireLasers(boss);
+          bossFireMissile(boss);
+
+          if (!isInvulnerable && !powerupState.shield && isColliding(player, boss.element)) {
+            loseLife();
+          }
+
+          for (let j = lasers.length - 1; j >= 0; j--) {
+            const laser = lasers[j];
+            if (laser && boss.element && isColliding(laser, boss.element)) {
+              cleanupElement(laser, lasers, j);
+              boss.health--;
+              createExplosion(laser.offsetLeft, laser.offsetTop);
+              if (boss.health <= 0) {
+                createExplosion(boss.element.offsetLeft + 50, boss.element.offsetTop + 50);
+                cleanupElement(boss.element, bosses, i);
+                explosionSound.currentTime = 0;
+                explosionSound.play().catch(e => console.error('Explosion sound failed:', e.message));
+                score += 20;
+                console.log('Boss defeated! Score +20');
+                scoreElement.textContent = `Score: ${score}`;
+              }
+              break;
+            }
+          }
+
+          if (currentTop > gameArea.clientHeight) {
+            cleanupElement(boss.element, bosses, i);
+          }
+        }
+
+        // Move power-ups
+        for (let i = powerups.length - 1; i >= 0; i--) {
+          const powerup = powerups[i];
+          const currentTop = parseFloat(powerup.style.top);
+          powerup.style.top = currentTop + 4 + 'px';
+
+          if (isColliding(player, powerup)) {
+            cleanupElement(powerup, powerups, i);
+            collectPowerup(powerup);
+            continue;
+          }
+
+          if (currentTop > gameArea.clientHeight) {
+            cleanupElement(powerup, powerups, i);
+          }
+        }
+
+        updateTimerBars();
+        requestAnimationFrame(gameLoop);
+      }
+
+      // Game timers
+      setInterval(() => {
+        if (!isGameOver && gameStarted) fireLaser();
+      }, powerupState.laserSize ? 150 : 200);
+
+      setInterval(() => {
+        if (!isGameOver && gameStarted && spawnInterval > 800) {
+          spawnInterval = Math.max(800, spawnInterval - 100);
+          startEnemySpawn();
+          console.log(`Spawn interval decreased to ${spawnInterval}ms`);
+        }
+      }, 45000);
+
+      setInterval(() => {
+        if (!isGameOver && gameStarted && enemySpeed < 15) {
+          enemySpeed += 1;
+          console.log(`Enemy speed increased to ${enemySpeed}px/frame`);
+        }
+      }, 20000);
+
+      setInterval(() => {
+        if (!isGameOver && gameStarted && largeEnemyChance < 0.5) {
+          largeEnemyChance = Math.min(0.5, largeEnemyChance + 0.05);
+          console.log(`Large enemy chance increased to ${largeEnemyChance}`);
+        }
+      }, 30000);
+
+      setInterval(() => {
+        if (!isGameOver && gameStarted && Math.random() < 0.5) {
+          createPowerup();
+        }
+      }, 5000);
+
+      setInterval(() => {
+        if (!isGameOver && gameStarted) {
+          createBoss();
+        }
+      }, 60000);
+    </script>
+  </body>
+</html>
